@@ -1,5 +1,8 @@
 import * as tf from "@tensorflow/tfjs";
 import { renderBoxes } from "./renderBox";
+import labels from "./labels.json";
+
+const numClass = labels.length;
 
 /**
  * Preprocess image / frame before forwarded into the model
@@ -49,15 +52,39 @@ export const detectImage = async (imgSource, model, classThreshold, canvasRef) =
   tf.engine().startScope(); // start scoping tf engine
   const [input, xRatio, yRatio] = preprocess(imgSource, modelWidth, modelHeight);
 
-  await model.net.executeAsync(input).then((res) => {
+  await model.net.executeAsync(input).then(async (res) => {
     //const [boxes, scores, classes] =
-    tf.tidy(() => {
-      const transRes = res[1].transpose([0, 2, 1]);
-      //TODO: slicing box and scores
-      const box = transRes.slice([0, 0, 1], [0, 4]);
-      console.log(box);
-      return transRes;
+    const transRes = res[1].transpose([0, 2, 1]);
+    const boxes = tf.tidy(() => {
+      const w = transRes.slice([0, 0, 2], [-1, -1, 1]);
+      const h = transRes.slice([0, 0, 3], [-1, -1, 1]);
+      const x1 = tf.sub(transRes.slice([0, 0, 0], [-1, -1, 1]), tf.div(w, 2)); //x1
+      const y1 = tf.sub(transRes.slice([0, 0, 1], [-1, -1, 1]), tf.div(h, 2)); //y1
+      return tf
+        .concat(
+          [
+            y1,
+            x1,
+            tf.add(y1, h), //y2
+            tf.add(x1, w), //x2
+          ],
+          2
+        )
+        .squeeze();
     });
+
+    const scores = transRes.slice([0, 0, 4], [-1, -1, numClass]);
+
+    const nms = await tf.image.nonMaxSuppressionAsync(
+      boxes,
+      scores.max(2).squeeze(),
+      500,
+      0.45,
+      0.2
+    );
+    nms.print();
+    //console.log(scores.max(2).squeeze());
+
     /* const [boxes, scores, classes] = res.slice(0, 3);
     const boxes_data = boxes.dataSync();
     const scores_data = scores.dataSync();
