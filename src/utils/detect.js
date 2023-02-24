@@ -73,23 +73,18 @@ export const detectImage = async (imgSource, model, classThreshold, canvasRef) =
         .squeeze();
     });
 
-    const scores = transRes.slice([0, 0, 4], [-1, -1, numClass]);
+    const rawScores = transRes.slice([0, 0, 4], [-1, -1, numClass]).squeeze();
+    const scores = rawScores.max(1);
+    const classes = rawScores.argMax(1);
 
-    const nms = await tf.image.nonMaxSuppressionAsync(
-      boxes,
-      scores.max(2).squeeze(),
-      500,
-      0.45,
-      0.2
-    );
-    nms.print();
-    //console.log(scores.max(2).squeeze());
+    const nms = await tf.image.nonMaxSuppressionAsync(boxes, scores, 500, 0.45, 0.2);
 
-    /* const [boxes, scores, classes] = res.slice(0, 3);
-    const boxes_data = boxes.dataSync();
-    const scores_data = scores.dataSync();
-    const classes_data = classes.dataSync();
-    renderBoxes(canvasRef, classThreshold, boxes_data, scores_data, classes_data, [xRatio, yRatio]); // render boxes */
+    const boxes_data = boxes.gather(nms, 0).dataSync();
+    const scores_data = scores.gather(nms, 0).dataSync();
+    const classes_data = classes.gather(nms, 0).dataSync();
+
+    // TODO: Fixing boxes coordinate for rendering
+    renderBoxes(canvasRef, boxes_data, scores_data, classes_data, [xRatio, yRatio]); // render boxes
 
     res.forEach((e) => {
       tf.dispose(e); // clear memory
