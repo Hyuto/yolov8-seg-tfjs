@@ -22,8 +22,6 @@ export const renderBoxes = (canvasRef, boxes_data, scores_data, classes_data, ra
   ctx.font = font;
   ctx.textBaseline = "top";
 
-  console.log(ratios);
-
   for (let i = 0; i < scores_data.length; ++i) {
     // filter based on class threshold
     const klass = labels[classes_data[i]];
@@ -31,17 +29,16 @@ export const renderBoxes = (canvasRef, boxes_data, scores_data, classes_data, ra
     const score = (scores_data[i] * 100).toFixed(1);
 
     let [y1, x1, y2, x2] = boxes_data.slice(i * 4, (i + 1) * 4);
-    x1 *= canvasRef.width * ratios[0];
-    x2 *= canvasRef.width * ratios[0];
-    y1 *= canvasRef.height * ratios[1];
-    y2 *= canvasRef.height * ratios[1];
+    x1 *= ratios[0];
+    x2 *= ratios[0];
+    y1 *= ratios[1];
+    y2 *= ratios[1];
     const width = x2 - x1;
     const height = y2 - y1;
 
     // draw box.
     ctx.fillStyle = Colors.hexToRgba(color, 0.2);
     ctx.fillRect(x1, y1, width, height);
-    console.log([x1, y1, width, height]);
 
     // draw border box.
     ctx.strokeStyle = color;

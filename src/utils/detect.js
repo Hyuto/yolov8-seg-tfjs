@@ -46,14 +46,13 @@ const preprocess = (source, modelWidth, modelHeight) => {
  * @param {Number} classThreshold class threshold
  * @param {HTMLCanvasElement} canvasRef canvas reference
  */
-export const detectImage = async (imgSource, model, classThreshold, canvasRef) => {
+export const detectImage = async (imgSource, model, canvasRef) => {
   const [modelWidth, modelHeight] = model.inputShape.slice(2); // get model width and height
 
   tf.engine().startScope(); // start scoping tf engine
   const [input, xRatio, yRatio] = preprocess(imgSource, modelWidth, modelHeight);
 
   await model.net.executeAsync(input).then(async (res) => {
-    //const [boxes, scores, classes] =
     const transRes = res[1].transpose([0, 2, 1]);
     const boxes = tf.tidy(() => {
       const w = transRes.slice([0, 0, 2], [-1, -1, 1]);
@@ -73,9 +72,10 @@ export const detectImage = async (imgSource, model, classThreshold, canvasRef) =
         .squeeze();
     });
 
-    const rawScores = transRes.slice([0, 0, 4], [-1, -1, numClass]).squeeze();
-    const scores = rawScores.max(1);
-    const classes = rawScores.argMax(1);
+    const [scores, classes] = tf.tidy(() => {
+      const rawScores = transRes.slice([0, 0, 4], [-1, -1, numClass]).squeeze();
+      return [rawScores.max(1), rawScores.argMax(1)];
+    });
 
     const nms = await tf.image.nonMaxSuppressionAsync(boxes, scores, 500, 0.45, 0.2);
 
@@ -83,12 +83,9 @@ export const detectImage = async (imgSource, model, classThreshold, canvasRef) =
     const scores_data = scores.gather(nms, 0).dataSync();
     const classes_data = classes.gather(nms, 0).dataSync();
 
-    // TODO: Fixing boxes coordinate for rendering
     renderBoxes(canvasRef, boxes_data, scores_data, classes_data, [xRatio, yRatio]); // render boxes
 
-    res.forEach((e) => {
-      tf.dispose(e); // clear memory
-    });
+    tf.dispose(res); // clear memory
   });
 
   tf.engine().endScope(); // end of scoping

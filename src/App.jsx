@@ -65,7 +65,7 @@ const App = () => {
         <img
           src="#"
           ref={imageRef}
-          onLoad={() => detectImage(imageRef.current, model, classThreshold, canvasRef.current)}
+          onLoad={() => detectImage(imageRef.current, model, canvasRef.current)}
         />
         <video
           autoPlay
@@ -79,7 +79,7 @@ const App = () => {
           ref={videoRef}
           onPlay={() => detectVideo(videoRef.current, model, classThreshold, canvasRef.current)}
         />
-        <canvas width={model.inputShape[1]} height={model.inputShape[2]} ref={canvasRef} />
+        <canvas width={model.inputShape[3]} height={model.inputShape[2]} ref={canvasRef} />
       </div>
 
       <ButtonHandler imageRef={imageRef} cameraRef={cameraRef} videoRef={videoRef} />
