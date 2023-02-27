@@ -36,15 +36,16 @@ const App = () => {
 
       // warming up model
       const dummyInput = tf.ones(yolov8.inputs[0].shape);
-      const warmupResult = await yolov8.executeAsync(dummyInput);
-      tf.dispose(warmupResult); // cleanup memory
-      tf.dispose(dummyInput); // cleanup memory
+      const warmupResults = yolov8.execute(dummyInput);
 
       setLoading({ loading: false, progress: 1 });
       setModel({
         net: yolov8,
         inputShape: yolov8.inputs[0].shape,
+        outputShape: warmupResults.map((e) => e.shape),
       }); // set model & input shape
+
+      tf.dispose([warmupResults, dummyInput]); // cleanup memory
     });
   }, []);
 
@@ -79,7 +80,7 @@ const App = () => {
           ref={videoRef}
           onPlay={() => detectVideo(videoRef.current, model, classThreshold, canvasRef.current)}
         />
-        <canvas width={model.inputShape[3]} height={model.inputShape[2]} ref={canvasRef} />
+        <canvas width={model.inputShape[2]} height={model.inputShape[1]} ref={canvasRef} />
       </div>
 
       <ButtonHandler imageRef={imageRef} cameraRef={cameraRef} videoRef={videoRef} />

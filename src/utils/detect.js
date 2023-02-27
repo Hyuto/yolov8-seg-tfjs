@@ -32,8 +32,7 @@ const preprocess = (source, modelWidth, modelHeight) => {
     return tf.image
       .resizeBilinear(imgPadded, [modelWidth, modelHeight]) // resize frame
       .div(255.0) // normalize
-      .expandDims(0) // add batch
-      .transpose([0, 3, 1, 2]);
+      .expandDims(0); // add batch
   });
 
   return [input, xRatio, yRatio];
@@ -47,46 +46,47 @@ const preprocess = (source, modelWidth, modelHeight) => {
  * @param {HTMLCanvasElement} canvasRef canvas reference
  */
 export const detectImage = async (imgSource, model, canvasRef) => {
-  const [modelWidth, modelHeight] = model.inputShape.slice(2); // get model width and height
+  const [modelHeight, modelWidth] = model.inputShape.slice(1, 3); // get model width and height
+  const modelSegChannel = model.outputShape[1][1];
 
   tf.engine().startScope(); // start scoping tf engine
   const [input, xRatio, yRatio] = preprocess(imgSource, modelWidth, modelHeight);
 
-  await model.net.executeAsync(input).then(async (res) => {
-    const transRes = res[1].transpose([0, 2, 1]);
-    const boxes = tf.tidy(() => {
-      const w = transRes.slice([0, 0, 2], [-1, -1, 1]);
-      const h = transRes.slice([0, 0, 3], [-1, -1, 1]);
-      const x1 = tf.sub(transRes.slice([0, 0, 0], [-1, -1, 1]), tf.div(w, 2)); //x1
-      const y1 = tf.sub(transRes.slice([0, 0, 1], [-1, -1, 1]), tf.div(h, 2)); //y1
-      return tf
-        .concat(
-          [
-            y1,
-            x1,
-            tf.add(y1, h), //y2
-            tf.add(x1, w), //x2
-          ],
-          2
-        )
-        .squeeze();
-    });
-
-    const [scores, classes] = tf.tidy(() => {
-      const rawScores = transRes.slice([0, 0, 4], [-1, -1, numClass]).squeeze();
-      return [rawScores.max(1), rawScores.argMax(1)];
-    });
-
-    const nms = await tf.image.nonMaxSuppressionAsync(boxes, scores, 500, 0.45, 0.2);
-
-    const boxes_data = boxes.gather(nms, 0).dataSync();
-    const scores_data = scores.gather(nms, 0).dataSync();
-    const classes_data = classes.gather(nms, 0).dataSync();
-
-    renderBoxes(canvasRef, boxes_data, scores_data, classes_data, [xRatio, yRatio]); // render boxes
-
-    tf.dispose(res); // clear memory
+  const res = model.net.execute(input);
+  const transRes = res[0].transpose([0, 2, 1]);
+  const boxes = tf.tidy(() => {
+    const w = transRes.slice([0, 0, 2], [-1, -1, 1]);
+    const h = transRes.slice([0, 0, 3], [-1, -1, 1]);
+    const x1 = tf.sub(transRes.slice([0, 0, 0], [-1, -1, 1]), tf.div(w, 2)); //x1
+    const y1 = tf.sub(transRes.slice([0, 0, 1], [-1, -1, 1]), tf.div(h, 2)); //y1
+    return tf
+      .concat(
+        [
+          y1,
+          x1,
+          tf.add(y1, h), //y2
+          tf.add(x1, w), //x2
+        ],
+        2
+      )
+      .squeeze();
   });
+
+  const [scores, classes] = tf.tidy(() => {
+    const rawScores = transRes.slice([0, 0, 4], [-1, -1, numClass]).squeeze();
+    return [rawScores.max(1), rawScores.argMax(1)];
+  });
+
+  const nms = await tf.image.nonMaxSuppressionAsync(boxes, scores, 500, 0.45, 0.2);
+
+  const boxes_data = boxes.gather(nms, 0).dataSync();
+  const scores_data = scores.gather(nms, 0).dataSync();
+  const classes_data = classes.gather(nms, 0).dataSync();
+
+  renderBoxes(canvasRef, boxes_data, scores_data, classes_data, [xRatio, yRatio]); // render boxes
+
+  tf.dispose(res); // clear memory
+  tf.dispose([transRes, boxes, scores, classes, nms]); // clear memory
 
   tf.engine().endScope(); // end of scoping
 };
