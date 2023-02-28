@@ -114,17 +114,13 @@ export const detectVideo = (vidSource, model, classThreshold, canvasRef) => {
     tf.engine().startScope(); // start scoping tf engine
     const [input, xRatio, yRatio] = preprocess(vidSource, modelWidth, modelHeight);
 
-    await model.net.executeAsync(input).then((res) => {
-      const [boxes, scores, classes] = res.slice(0, 3);
-      const boxes_data = boxes.dataSync();
-      const scores_data = scores.dataSync();
-      const classes_data = classes.dataSync();
-      renderBoxes(canvasRef, classThreshold, boxes_data, scores_data, classes_data, [
-        xRatio,
-        yRatio,
-      ]); // render boxes
-      tf.dispose(res); // clear memory
-    });
+    const res = model.net.execute(input);
+    const [boxes, scores, classes] = res.slice(0, 3);
+    const boxes_data = boxes.dataSync();
+    const scores_data = scores.dataSync();
+    const classes_data = classes.dataSync();
+    renderBoxes(canvasRef, classThreshold, boxes_data, scores_data, classes_data, [xRatio, yRatio]); // render boxes
+    tf.dispose(res); // clear memory
 
     requestAnimationFrame(detectFrame); // get another frame
     tf.engine().endScope(); // end of scoping
