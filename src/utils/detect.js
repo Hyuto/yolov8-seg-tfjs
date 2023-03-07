@@ -47,7 +47,7 @@ const preprocess = (source, modelWidth, modelHeight) => {
  */
 export const detectImage = async (imgSource, model, canvasRef) => {
   const [modelHeight, modelWidth] = model.inputShape.slice(1, 3); // get model width and height
-  const modelSegChannel = model.outputShape[1][1];
+  const modelSegChannel = model.outputShape[1][3];
 
   tf.engine().startScope(); // start scoping tf engine
   const [input, xRatio, yRatio] = preprocess(imgSource, modelWidth, modelHeight);
@@ -71,6 +71,7 @@ export const detectImage = async (imgSource, model, canvasRef) => {
       )
       .squeeze();
   });
+  const masks = transRes.slice([0, 0, 4], [-1, -1, modelSegChannel]).squeeze();
 
   const [scores, classes] = tf.tidy(() => {
     const rawScores = transRes.slice([0, 0, 4], [-1, -1, numClass]).squeeze();
@@ -82,6 +83,14 @@ export const detectImage = async (imgSource, model, canvasRef) => {
   const boxes_data = boxes.gather(nms, 0).dataSync();
   const scores_data = scores.gather(nms, 0).dataSync();
   const classes_data = classes.gather(nms, 0).dataSync();
+  const masks_data = masks.gather(nms, 0).dataSync();
+  console.log(masks_data);
+
+  /* const boxesToDraw = [];
+
+  for(let i = 0; i < boxes_data.length; i++){
+
+  } */
 
   renderBoxes(canvasRef, boxes_data, scores_data, classes_data, [xRatio, yRatio]); // render boxes
 
