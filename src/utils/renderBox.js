@@ -1,14 +1,9 @@
-import labels from "./labels.json";
-
 /**
  * Render prediction boxes
  * @param {HTMLCanvasElement} canvasRef canvas tag reference
- * @param {Array} boxes_data boxes array
- * @param {Array} scores_data scores array
- * @param {Array} classes_data class array
- * @param {Array[Number]} ratios boxes ratio [xRatio, yRatio]
+ * @param {Array} boxesToDraw boxes array to draw
  */
-export const renderBoxes = (canvasRef, boxes_data, scores_data, classes_data, ratios) => {
+export const renderBoxes = (canvasRef, boxesToDraw) => {
   const ctx = canvasRef.getContext("2d");
   ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height); // clean canvas
 
@@ -22,17 +17,12 @@ export const renderBoxes = (canvasRef, boxes_data, scores_data, classes_data, ra
   ctx.font = font;
   ctx.textBaseline = "top";
 
-  for (let i = 0; i < scores_data.length; ++i) {
+  boxesToDraw.forEach((e) => {
     // filter based on class threshold
-    const klass = labels[classes_data[i]];
-    const color = colors.get(classes_data[i]);
-    const score = (scores_data[i] * 100).toFixed(1);
+    const color = colors.get(e.klass);
+    const score = (e.score * 100).toFixed(1);
 
-    let [y1, x1, y2, x2] = boxes_data.slice(i * 4, (i + 1) * 4);
-    x1 *= ratios[0];
-    x2 *= ratios[0];
-    y1 *= ratios[1];
-    y2 *= ratios[1];
+    let [y1, x1, y2, x2] = e.box;
     const width = x2 - x1;
     const height = y2 - y1;
 
@@ -47,7 +37,7 @@ export const renderBoxes = (canvasRef, boxes_data, scores_data, classes_data, ra
 
     // Draw the label background.
     ctx.fillStyle = color;
-    const textWidth = ctx.measureText(klass + " - " + score + "%").width;
+    const textWidth = ctx.measureText(e.label + " - " + score + "%").width;
     const textHeight = parseInt(font, 10); // base 10
     const yText = y1 - (textHeight + ctx.lineWidth);
     ctx.fillRect(
@@ -59,8 +49,8 @@ export const renderBoxes = (canvasRef, boxes_data, scores_data, classes_data, ra
 
     // Draw labels
     ctx.fillStyle = "#ffffff";
-    ctx.fillText(klass + " - " + score + "%", x1 - 1, yText < 0 ? 0 : yText);
-  }
+    ctx.fillText(e.label + " - " + score + "%", x1 - 1, yText < 0 ? 0 : yText);
+  });
 };
 
 class Colors {

@@ -53,12 +53,14 @@ export const detectImage = async (imgSource, model, canvasRef) => {
   const [input, xRatio, yRatio] = preprocess(imgSource, modelWidth, modelHeight);
 
   const res = model.net.execute(input);
-  const transRes = res[0].transpose([0, 2, 1]);
+  const transRes = res[0].transpose([0, 2, 1]).squeeze();
+  const transSegMask = res[1].transpose([0, 3, 1, 2]).squeeze();
+
   const boxes = tf.tidy(() => {
-    const w = transRes.slice([0, 0, 2], [-1, -1, 1]);
-    const h = transRes.slice([0, 0, 3], [-1, -1, 1]);
-    const x1 = tf.sub(transRes.slice([0, 0, 0], [-1, -1, 1]), tf.div(w, 2)); //x1
-    const y1 = tf.sub(transRes.slice([0, 0, 1], [-1, -1, 1]), tf.div(h, 2)); //y1
+    const w = transRes.slice([0, 2], [-1, 1]);
+    const h = transRes.slice([0, 3], [-1, 1]);
+    const x1 = tf.sub(transRes.slice([0, 0], [-1, 1]), tf.div(w, 2)); //x1
+    const y1 = tf.sub(transRes.slice([0, 1], [-1, 1]), tf.div(h, 2)); //y1
     return tf
       .concat(
         [
@@ -67,35 +69,58 @@ export const detectImage = async (imgSource, model, canvasRef) => {
           tf.add(y1, h), //y2
           tf.add(x1, w), //x2
         ],
-        2
+        1
       )
       .squeeze();
   });
-  const masks = transRes.slice([0, 0, 4], [-1, -1, modelSegChannel]).squeeze();
+  const masks = transRes.slice([0, 4], [-1, modelSegChannel]).squeeze();
 
   const [scores, classes] = tf.tidy(() => {
-    const rawScores = transRes.slice([0, 0, 4], [-1, -1, numClass]).squeeze();
+    const rawScores = transRes.slice([0, 4], [-1, numClass]).squeeze();
     return [rawScores.max(1), rawScores.argMax(1)];
   });
 
   const nms = await tf.image.nonMaxSuppressionAsync(boxes, scores, 500, 0.45, 0.2);
 
-  const boxes_data = boxes.gather(nms, 0).dataSync();
-  const scores_data = scores.gather(nms, 0).dataSync();
-  const classes_data = classes.gather(nms, 0).dataSync();
-  const masks_data = masks.gather(nms, 0).dataSync();
-  console.log(masks_data);
+  const boxesToDraw = tf.tidy(() => {
+    const toDraw = [];
+    const overlay = [];
 
-  /* const boxesToDraw = [];
+    const detReady = tf.concat(
+      [
+        boxes.gather(nms, 0),
+        scores.gather(nms, 0).expandDims(1),
+        classes.gather(nms, 0).expandDims(1),
+        masks.gather(nms, 0),
+      ],
+      1
+    );
 
-  for(let i = 0; i < boxes_data.length; i++){
+    for (let i = 0; i < detReady.shape[0]; i++) {
+      const [y1, x1, y2, x2] = detReady.slice([i, 0], [1, 4]).round().cast("int32").dataSync();
+      const score = detReady.slice([i, 4], [1, 1]).dataSync();
+      const label = detReady.slice([i, 5], [1, 1]).cast("int32").dataSync();
+      const mask = detReady.slice([i, 6], [1, modelSegChannel]);
 
-  } */
+      // TODO: Fixing slicing protos
+      //const cutProtos = transSegMask.slice([0, y1, x1], [-1, y2 - y1, x2 - x1]);
 
-  renderBoxes(canvasRef, boxes_data, scores_data, classes_data, [xRatio, yRatio]); // render boxes
+      //console.log(tf.matMul(mask, cutProtos.reshape([modelSegChannel, -1])));
+      toDraw.push({
+        box: [y1 * yRatio, x1 * xRatio, y2 * yRatio, x2 * xRatio],
+        score: score[0],
+        klass: label[0],
+        label: labels[label[0]],
+      });
+    }
+
+    return toDraw;
+  });
+
+  renderBoxes(canvasRef, boxesToDraw); // render boxes
 
   tf.dispose(res); // clear memory
-  tf.dispose([transRes, boxes, scores, classes, nms]); // clear memory
+  tf.dispose([transRes, transSegMask, boxes, scores, classes, nms]); // clear memory
 
   tf.engine().endScope(); // end of scoping
 };
