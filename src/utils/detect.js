@@ -47,7 +47,7 @@ const preprocess = (source, modelWidth, modelHeight) => {
  */
 export const detectImage = async (imgSource, model, canvasRef) => {
   const [modelHeight, modelWidth] = model.inputShape.slice(1, 3); // get model width and height
-  const modelSegChannel = model.outputShape[1][3];
+  const [modelSegHeight, modelSegWidth, modelSegChannel] = model.outputShape[1].slice(1);
 
   tf.engine().startScope(); // start scoping tf engine
   const [input, xRatio, yRatio] = preprocess(imgSource, modelWidth, modelHeight);
@@ -97,15 +97,31 @@ export const detectImage = async (imgSource, model, canvasRef) => {
     );
 
     for (let i = 0; i < detReady.shape[0]; i++) {
-      const [y1, x1, y2, x2] = detReady.slice([i, 0], [1, 4]).round().cast("int32").dataSync();
+      const [y1, x1, y2, x2] = detReady.slice([i, 0], [1, 4]).dataSync();
       const score = detReady.slice([i, 4], [1, 1]).dataSync();
       const label = detReady.slice([i, 5], [1, 1]).cast("int32").dataSync();
+
       const mask = detReady.slice([i, 6], [1, modelSegChannel]);
+      const yDownSample = Math.round((y1 * modelSegHeight) / modelHeight);
+      const xDownSample = Math.round((x1 * modelSegWidth) / modelWidth);
+      const hDownSample = Math.round(((y2 - y1) * modelSegHeight) / modelHeight);
+      const wDownSample = Math.round(((x2 - x1) * modelSegWidth) / modelWidth);
 
-      // TODO: Fixing slicing protos
-      //const cutProtos = transSegMask.slice([0, y1, x1], [-1, y2 - y1, x2 - x1]);
+      const cutProtos = transSegMask.slice(
+        [0, yDownSample, xDownSample],
+        [-1, hDownSample, wDownSample]
+      );
+      const protos = tf
+        .matMul(mask, cutProtos.reshape([modelSegChannel, -1]))
+        .reshape([hDownSample, wDownSample])
+        .expandDims(-1);
+      const masked = tf.where(protos.greaterEqual(0.5), [255, 255, 255], [0, 0, 0]);
+      const upsampleMasked = tf.image.resizeBilinear(masked, [
+        Math.round(y2 - y1),
+        Math.round(x2 - x1),
+      ]);
+      // TODO: Handle upsample masked
 
-      //console.log(tf.matMul(mask, cutProtos.reshape([modelSegChannel, -1])));
       toDraw.push({
         box: [y1 * yRatio, x1 * xRatio, y2 * yRatio, x2 * xRatio],
         score: score[0],
