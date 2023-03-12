@@ -84,7 +84,7 @@ export const detectImage = async (imgSource, model, canvasRef) => {
 
   const boxesToDraw = tf.tidy(() => {
     const toDraw = [];
-    const overlay = [];
+    let overlay = tf.zeros([modelHeight, modelWidth, 3]);
 
     const detReady = tf.concat(
       [
@@ -97,7 +97,7 @@ export const detectImage = async (imgSource, model, canvasRef) => {
     );
 
     for (let i = 0; i < detReady.shape[0]; i++) {
-      const [y1, x1, y2, x2] = detReady.slice([i, 0], [1, 4]).dataSync();
+      const [y1, x1, y2, x2] = detReady.slice([i, 0], [1, 4]).round().dataSync();
       const score = detReady.slice([i, 4], [1, 1]).dataSync();
       const label = detReady.slice([i, 5], [1, 1]).cast("int32").dataSync();
 
@@ -115,12 +115,19 @@ export const detectImage = async (imgSource, model, canvasRef) => {
         .matMul(mask, cutProtos.reshape([modelSegChannel, -1]))
         .reshape([hDownSample, wDownSample])
         .expandDims(-1);
-      const masked = tf.where(protos.greaterEqual(0.5), [255, 255, 255], [0, 0, 0]);
-      const upsampleMasked = tf.image.resizeBilinear(masked, [
+      const upsampleProtos = tf.image.resizeBilinear(protos, [
         Math.round(y2 - y1),
         Math.round(x2 - x1),
       ]);
-      // TODO: Handle upsample masked
+      const masked = tf.where(upsampleProtos.greaterEqual(0.5), [255, 255, 255], [0, 0, 0]);
+      const maskedPaded = masked.pad([
+        [y1, modelHeight - y2],
+        [x1, modelWidth - x2],
+        [0, 0],
+      ]);
+
+      // TODO: add weighted overlay
+      overlay = overlay.add(maskedPaded).cast("int32");
 
       toDraw.push({
         box: [y1 * yRatio, x1 * xRatio, y2 * yRatio, x2 * xRatio],
@@ -129,6 +136,7 @@ export const detectImage = async (imgSource, model, canvasRef) => {
         label: labels[label[0]],
       });
     }
+    // tf.browser.toPixels(overlay, canvasRef);
 
     return toDraw;
   });
