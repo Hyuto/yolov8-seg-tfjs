@@ -1,9 +1,13 @@
 description: Ultralytics YOLOv8n-seg model trained on coco.yaml
 author: Ultralytics
 license: GPL-3.0 https://ultralytics.com/license
-version: 8.0.47
+version: 8.0.55
 stride: 32
 task: segment
+batch: 1
+imgsz:
+- 640
+- 640
 names:
   0: person
   1: bicycle

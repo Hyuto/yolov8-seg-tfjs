@@ -127,7 +127,6 @@ export const detectImage = async (imgSource, model, canvasRef) => {
       ]);
 
       // TODO: add weighted overlay
-      overlay = overlay.add(maskedPaded).cast("int32");
 
       toDraw.push({
         box: [y1 * yRatio, x1 * xRatio, y2 * yRatio, x2 * xRatio],
@@ -136,7 +135,6 @@ export const detectImage = async (imgSource, model, canvasRef) => {
         label: labels[label[0]],
       });
     }
-    // tf.browser.toPixels(overlay, canvasRef);
 
     return toDraw;
   });
