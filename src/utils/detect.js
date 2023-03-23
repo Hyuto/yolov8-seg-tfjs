@@ -40,17 +40,17 @@ const preprocess = (source, modelWidth, modelHeight) => {
 
 /**
  * Function to detect image.
- * @param {HTMLImageElement} imgSource image source
+ * @param {HTMLImageElement} source Source
  * @param {tf.GraphModel} model loaded YOLOv8 tensorflow.js model
  * @param {Number} classThreshold class threshold
  * @param {HTMLCanvasElement} canvasRef canvas reference
  */
-export const detectImage = async (imgSource, model, canvasRef) => {
+export const detectFrame = async (source, model, canvasRef, callback = () => {}) => {
   const [modelHeight, modelWidth] = model.inputShape.slice(1, 3); // get model width and height
   const [modelSegHeight, modelSegWidth, modelSegChannel] = model.outputShape[1].slice(1);
 
   tf.engine().startScope(); // start scoping tf engine
-  const [input, xRatio, yRatio] = preprocess(imgSource, modelWidth, modelHeight);
+  const [input, xRatio, yRatio] = preprocess(source, modelWidth, modelHeight);
 
   const res = model.net.execute(input);
   const transRes = res[0].transpose([0, 2, 1]).squeeze();
@@ -102,14 +102,18 @@ export const detectImage = async (imgSource, model, canvasRef) => {
       const label = detReady.slice([i, 5], [1, 1]).cast("int32").dataSync();
 
       const mask = detReady.slice([i, 6], [1, modelSegChannel]);
-      const yDownSample = Math.round((y1 * modelSegHeight) / modelHeight);
-      const xDownSample = Math.round((x1 * modelSegWidth) / modelWidth);
-      const hDownSample = Math.round(((y2 - y1) * modelSegHeight) / modelHeight);
-      const wDownSample = Math.round(((x2 - x1) * modelSegWidth) / modelWidth);
+      const yDownSample = Math.floor((y1 * modelSegHeight) / modelHeight);
+      const xDownSample = Math.floor((x1 * modelSegWidth) / modelWidth);
+      const hDownSample = Math.floor(((y2 - y1) * modelSegHeight) / modelHeight);
+      const wDownSample = Math.floor(((x2 - x1) * modelSegWidth) / modelWidth);
 
       const cutProtos = transSegMask.slice(
-        [0, yDownSample, xDownSample],
-        [-1, hDownSample, wDownSample]
+        [0, yDownSample >= 0 ? yDownSample : 0, xDownSample >= 0 ? xDownSample : 0],
+        [
+          -1,
+          yDownSample + hDownSample <= modelSegHeight ? hDownSample : modelSegHeight - yDownSample,
+          xDownSample + wDownSample <= modelSegWidth ? wDownSample : modelSegWidth - xDownSample,
+        ]
       );
       const protos = tf
         .matMul(mask, cutProtos.reshape([modelSegChannel, -1]))
@@ -144,6 +148,8 @@ export const detectImage = async (imgSource, model, canvasRef) => {
   tf.dispose(res); // clear memory
   tf.dispose([transRes, transSegMask, boxes, scores, classes, nms]); // clear memory
 
+  callback();
+
   tf.engine().endScope(); // end of scoping
 };
 
@@ -151,36 +157,23 @@ export const detectImage = async (imgSource, model, canvasRef) => {
  * Function to detect video from every source.
  * @param {HTMLVideoElement} vidSource video source
  * @param {tf.GraphModel} model loaded YOLOv8 tensorflow.js model
- * @param {Number} classThreshold class threshold
  * @param {HTMLCanvasElement} canvasRef canvas reference
  */
-export const detectVideo = (vidSource, model, classThreshold, canvasRef) => {
-  const [modelWidth, modelHeight] = model.inputShape.slice(1, 3); // get model width and height
-
+export const detectVideo = (vidSource, model, canvasRef) => {
   /**
    * Function to detect every frame from video
    */
-  const detectFrame = async () => {
+  const detect = async () => {
     if (vidSource.videoWidth === 0 && vidSource.srcObject === null) {
       const ctx = canvasRef.getContext("2d");
       ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height); // clean canvas
       return; // handle if source is closed
     }
 
-    tf.engine().startScope(); // start scoping tf engine
-    const [input, xRatio, yRatio] = preprocess(vidSource, modelWidth, modelHeight);
-
-    const res = model.net.execute(input);
-    const [boxes, scores, classes] = res.slice(0, 3);
-    const boxes_data = boxes.dataSync();
-    const scores_data = scores.dataSync();
-    const classes_data = classes.dataSync();
-    renderBoxes(canvasRef, classThreshold, boxes_data, scores_data, classes_data, [xRatio, yRatio]); // render boxes
-    tf.dispose(res); // clear memory
-
-    requestAnimationFrame(detectFrame); // get another frame
-    tf.engine().endScope(); // end of scoping
+    detectFrame(vidSource, model, canvasRef, () => {
+      requestAnimationFrame(detect); // get another frame
+    });
   };
 
-  detectFrame(); // initialize to detect every frame
+  detect(); // initialize to detect every frame
 };

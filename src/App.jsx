@@ -3,7 +3,7 @@ import * as tf from "@tensorflow/tfjs";
 import "@tensorflow/tfjs-backend-webgl"; // set backend to webgl
 import Loader from "./components/loader";
 import ButtonHandler from "./components/btn-handler";
-import { detectImage, detectVideo } from "./utils/detect";
+import { detectFrame, detectVideo } from "./utils/detect";
 import "./style/App.css";
 
 const App = () => {
@@ -21,7 +21,6 @@ const App = () => {
 
   // model configs
   const modelName = "yolov8n-seg";
-  const classThreshold = 0.2;
 
   useEffect(() => {
     tf.ready().then(async () => {
@@ -66,19 +65,19 @@ const App = () => {
         <img
           src="#"
           ref={imageRef}
-          onLoad={() => detectImage(imageRef.current, model, canvasRef.current)}
+          onLoad={() => detectFrame(imageRef.current, model, canvasRef.current)}
         />
         <video
           autoPlay
           muted
           ref={cameraRef}
-          onPlay={() => detectVideo(cameraRef.current, model, classThreshold, canvasRef.current)}
+          onPlay={() => detectVideo(cameraRef.current, model, canvasRef.current)}
         />
         <video
           autoPlay
           muted
           ref={videoRef}
-          onPlay={() => detectVideo(videoRef.current, model, classThreshold, canvasRef.current)}
+          onPlay={() => detectVideo(videoRef.current, model, canvasRef.current)}
         />
         <canvas width={model.inputShape[2]} height={model.inputShape[1]} ref={canvasRef} />
       </div>
