@@ -44,6 +44,7 @@ const preprocess = (source, modelWidth, modelHeight) => {
  * @param {tf.GraphModel} model loaded YOLOv8 tensorflow.js model
  * @param {Number} classThreshold class threshold
  * @param {HTMLCanvasElement} canvasRef canvas reference
+ * @param {VoidFunction} callback Callback function to run after detect frame is done
  */
 export const detectFrame = async (source, model, canvasRef, callback = () => {}) => {
   const [modelHeight, modelWidth] = model.inputShape.slice(1, 3); // get model width and height
