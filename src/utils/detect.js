@@ -74,12 +74,12 @@ export const detectFrame = async (source, model, canvasRef, callback = () => {})
       )
       .squeeze();
   });
-  const masks = transRes.slice([0, 4], [-1, modelSegChannel]).squeeze();
 
   const [scores, classes] = tf.tidy(() => {
     const rawScores = transRes.slice([0, 4], [-1, numClass]).squeeze();
     return [rawScores.max(1), rawScores.argMax(1)];
   });
+  const masks = transRes.slice([0, 4 + numClass], [-1, modelSegChannel]).squeeze();
 
   const nms = await tf.image.nonMaxSuppressionAsync(boxes, scores, 500, 0.45, 0.2);
 
@@ -126,12 +126,13 @@ export const detectFrame = async (source, model, canvasRef, callback = () => {})
       ]);
       const masked = tf.where(upsampleProtos.greaterEqual(0.5), [255, 255, 255], [0, 0, 0]);
       const maskedPaded = masked.pad([
-        [y1, modelHeight - y2],
-        [x1, modelWidth - x2],
+        [Math.floor(y1 * yRatio), modelHeight - Math.floor(y2 * yRatio)],
+        [Math.floor(x1 * xRatio), modelWidth - Math.floor(x2 * xRatio)],
         [0, 0],
       ]);
 
       // TODO: add weighted overlay
+      tf.browser.toPixels(maskedPaded.cast("int32"), canvasRef);
 
       toDraw.push({
         box: [y1 * yRatio, x1 * xRatio, y2 * yRatio, x2 * xRatio],
@@ -144,7 +145,7 @@ export const detectFrame = async (source, model, canvasRef, callback = () => {})
     return toDraw;
   });
 
-  renderBoxes(canvasRef, boxesToDraw); // render boxes
+  //renderBoxes(canvasRef, boxesToDraw); // render boxes
 
   tf.dispose(res); // clear memory
   tf.dispose([transRes, transSegMask, boxes, scores, classes, nms]); // clear memory
