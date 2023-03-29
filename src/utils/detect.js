@@ -98,15 +98,15 @@ export const detectFrame = async (source, model, canvasRef, callback = () => {})
     );
 
     for (let i = 0; i < detReady.shape[0]; i++) {
-      const [y1, x1, y2, x2] = detReady.slice([i, 0], [1, 4]).round().dataSync();
+      const [y1, x1, y2, x2] = detReady.slice([i, 0], [1, 4]).dataSync();
       const score = detReady.slice([i, 4], [1, 1]).dataSync();
       const label = detReady.slice([i, 5], [1, 1]).cast("int32").dataSync();
 
       const mask = detReady.slice([i, 6], [1, modelSegChannel]);
       const yDownSample = Math.floor((y1 * modelSegHeight) / modelHeight);
       const xDownSample = Math.floor((x1 * modelSegWidth) / modelWidth);
-      const hDownSample = Math.floor(((y2 - y1) * modelSegHeight) / modelHeight);
-      const wDownSample = Math.floor(((x2 - x1) * modelSegWidth) / modelWidth);
+      const hDownSample = Math.round(((y2 - y1) * modelSegHeight) / modelHeight);
+      const wDownSample = Math.round(((x2 - x1) * modelSegWidth) / modelWidth);
 
       const cutProtos = transSegMask.slice(
         [0, yDownSample >= 0 ? yDownSample : 0, xDownSample >= 0 ? xDownSample : 0],
@@ -124,13 +124,14 @@ export const detectFrame = async (source, model, canvasRef, callback = () => {})
         Math.round(y2 - y1),
         Math.round(x2 - x1),
       ]);
-      const masked = tf.where(upsampleProtos.greaterEqual(0.5), [255, 255, 255], [0, 0, 0]);
+      const masked = tf.where(upsampleProtos.greaterEqual(0.5), [255, 255, 255, 150], [0, 0, 0, 0]);
       const maskedPaded = masked.pad([
-        [Math.floor(y1 * yRatio), modelHeight - Math.floor(y2 * yRatio)],
-        [Math.floor(x1 * xRatio), modelWidth - Math.floor(x2 * xRatio)],
+        [Math.floor(y1 * yRatio), modelHeight - Math.round(y2 * yRatio)],
+        [Math.floor(x1 * xRatio), modelWidth - Math.round(x2 * xRatio)],
         [0, 0],
       ]);
 
+      // TODO: Fixing mask ratio
       // TODO: add weighted overlay
       tf.browser.toPixels(maskedPaded.cast("int32"), canvasRef);
 
