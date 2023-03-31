@@ -101,42 +101,55 @@ export const detectFrame = async (source, model, canvasRef, callback = () => {})
       const [y1, x1, y2, x2] = detReady.slice([i, 0], [1, 4]).dataSync();
       const score = detReady.slice([i, 4], [1, 1]).dataSync();
       const label = detReady.slice([i, 5], [1, 1]).cast("int32").dataSync();
-
       const mask = detReady.slice([i, 6], [1, modelSegChannel]);
-      const yDownSample = Math.floor((y1 * modelSegHeight) / modelHeight);
-      const xDownSample = Math.floor((x1 * modelSegWidth) / modelWidth);
-      const hDownSample = Math.round(((y2 - y1) * modelSegHeight) / modelHeight);
-      const wDownSample = Math.round(((x2 - x1) * modelSegWidth) / modelWidth);
+
+      const upSampleBox = [
+        Math.floor(y1 * yRatio), // y
+        Math.floor(x1 * xRatio), // x
+        Math.round((y2 - y1) * yRatio), // h
+        Math.round((x2 - x1) * xRatio), // w
+      ];
+      const downSampleBox = [
+        Math.floor((y1 * modelSegHeight) / modelHeight), // y
+        Math.floor((x1 * modelSegWidth) / modelWidth), // x
+        Math.round(((y2 - y1) * modelSegHeight) / modelHeight), // h
+        Math.round(((x2 - x1) * modelSegWidth) / modelWidth), // w
+      ];
 
       const cutProtos = transSegMask.slice(
-        [0, yDownSample >= 0 ? yDownSample : 0, xDownSample >= 0 ? xDownSample : 0],
+        [
+          0,
+          downSampleBox[0] >= 0 ? downSampleBox[0] : 0,
+          downSampleBox[1] >= 0 ? downSampleBox[1] : 0,
+        ],
         [
           -1,
-          yDownSample + hDownSample <= modelSegHeight ? hDownSample : modelSegHeight - yDownSample,
-          xDownSample + wDownSample <= modelSegWidth ? wDownSample : modelSegWidth - xDownSample,
+          downSampleBox[0] + downSampleBox[2] <= modelSegHeight
+            ? downSampleBox[2]
+            : modelSegHeight - downSampleBox[0],
+          downSampleBox[1] + downSampleBox[3] <= modelSegWidth
+            ? downSampleBox[3]
+            : modelSegWidth - downSampleBox[1],
         ]
       );
       const protos = tf
         .matMul(mask, cutProtos.reshape([modelSegChannel, -1]))
-        .reshape([hDownSample, wDownSample])
+        .reshape([downSampleBox[2], downSampleBox[3]])
         .expandDims(-1);
-      const upsampleProtos = tf.image.resizeBilinear(protos, [
-        Math.round(y2 - y1),
-        Math.round(x2 - x1),
-      ]);
+      const upsampleProtos = tf.image.resizeBilinear(protos, [upSampleBox[2], upSampleBox[3]]);
       const masked = tf.where(upsampleProtos.greaterEqual(0.5), [255, 255, 255, 150], [0, 0, 0, 0]);
       const maskedPaded = masked.pad([
-        [Math.floor(y1 * yRatio), modelHeight - Math.round(y2 * yRatio)],
-        [Math.floor(x1 * xRatio), modelWidth - Math.round(x2 * xRatio)],
+        [upSampleBox[0], modelHeight - (upSampleBox[0] + upSampleBox[2])],
+        [upSampleBox[1], modelWidth - (upSampleBox[1] + upSampleBox[3])],
         [0, 0],
       ]);
 
-      // TODO: Fixing mask ratio
       // TODO: add weighted overlay
+      // TODO: Render masked with general ctx function
       tf.browser.toPixels(maskedPaded.cast("int32"), canvasRef);
 
       toDraw.push({
-        box: [y1 * yRatio, x1 * xRatio, y2 * yRatio, x2 * xRatio],
+        box: upSample,
         score: score[0],
         klass: label[0],
         label: labels[label[0]],
@@ -146,7 +159,7 @@ export const detectFrame = async (source, model, canvasRef, callback = () => {})
     return toDraw;
   });
 
-  //renderBoxes(canvasRef, boxesToDraw); // render boxes
+  // renderBoxes(canvasRef, boxesToDraw); // render boxes
 
   tf.dispose(res); // clear memory
   tf.dispose([transRes, transSegMask, boxes, scores, classes, nms]); // clear memory

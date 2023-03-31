@@ -22,9 +22,7 @@ export const renderBoxes = (canvasRef, boxesToDraw) => {
     const color = colors.get(e.klass);
     const score = (e.score * 100).toFixed(1);
 
-    let [y1, x1, y2, x2] = e.box;
-    const width = x2 - x1;
-    const height = y2 - y1;
+    let [y1, x1, height, width] = e.box;
 
     // draw box.
     ctx.fillStyle = Colors.hexToRgba(color, 0.2);
