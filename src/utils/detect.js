@@ -85,7 +85,7 @@ export const detectFrame = async (source, model, canvasRef, callback = () => {})
 
   const boxesToDraw = tf.tidy(() => {
     const toDraw = [];
-    let overlay = tf.zeros([modelHeight, modelWidth, 3]);
+    let overlay = tf.zeros([modelHeight, modelWidth, 4]);
 
     const detReady = tf.concat(
       [
@@ -144,22 +144,30 @@ export const detectFrame = async (source, model, canvasRef, callback = () => {})
         [0, 0],
       ]);
 
-      // TODO: add weighted overlay
-      // TODO: Render masked with general ctx function
-      tf.browser.toPixels(maskedPaded.cast("int32"), canvasRef);
+      overlay = addWeighted(overlay, maskedPaded, 1, 1);
 
       toDraw.push({
-        box: upSample,
+        box: upSampleBox,
         score: score[0],
         klass: label[0],
         label: labels[label[0]],
       });
     }
 
+    const maskImg = new ImageData(
+      new Uint8ClampedArray(overlay.cast("int32").dataSync()),
+      modelHeight,
+      modelWidth
+    ); // create image data from mask overlay
+
+    const ctx = canvasRef.getContext("2d");
+    ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height); // clean canvas
+    ctx.putImageData(maskImg, 0, 0);
+
     return toDraw;
   });
 
-  // renderBoxes(canvasRef, boxesToDraw); // render boxes
+  renderBoxes(canvasRef, boxesToDraw); // render boxes
 
   tf.dispose(res); // clear memory
   tf.dispose([transRes, transSegMask, boxes, scores, classes, nms]); // clear memory
@@ -192,4 +200,11 @@ export const detectVideo = (vidSource, model, canvasRef) => {
   };
 
   detect(); // initialize to detect every frame
+};
+
+const addWeighted = (a, b, alpha, beta) => {
+  return tf.tidy(() => {
+    const combine = tf.add(tf.mul(a, alpha), tf.mul(b, beta));
+    return combine.where(combine.lessEqual(255), 255);
+  });
 };

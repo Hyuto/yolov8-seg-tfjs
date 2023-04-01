@@ -5,7 +5,7 @@
  */
 export const renderBoxes = (canvasRef, boxesToDraw) => {
   const ctx = canvasRef.getContext("2d");
-  ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height); // clean canvas
+  //ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height); // clean canvas
 
   const colors = new Colors();
 
@@ -26,7 +26,7 @@ export const renderBoxes = (canvasRef, boxesToDraw) => {
 
     // draw box.
     ctx.fillStyle = Colors.hexToRgba(color, 0.2);
-    ctx.fillRect(x1, y1, width, height);
+    //ctx.fillRect(x1, y1, width, height);
 
     // draw border box.
     ctx.strokeStyle = color;
