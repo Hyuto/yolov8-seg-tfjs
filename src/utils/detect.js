@@ -1,8 +1,9 @@
 import * as tf from "@tensorflow/tfjs";
-import { renderBoxes } from "./renderBox";
+import { renderBoxes, Colors } from "./renderBox";
 import labels from "./labels.json";
 
 const numClass = labels.length;
+const colors = new Colors();
 
 /**
  * Preprocess image / frame before forwarded into the model
@@ -106,6 +107,7 @@ export const detectFrame = async (source, model, canvasRef, callback = () => {})
   for (let i = 0; i < detReady.shape[0]; i++) {
     const rowData = detReady.slice([i, 0], [1, 6]);
     let [y1, x1, y2, x2, score, label] = rowData.dataSync();
+    const color = colors.get(label);
 
     const upSampleBox = [
       Math.floor(y1 * yRatio), // y
@@ -149,16 +151,17 @@ export const detectFrame = async (source, model, canvasRef, callback = () => {})
       return padded.less(0.5);
     });
     overlay = tf.tidy(() => {
-      const newOverlay = overlay.where(mask, [255, 255, 255, 150]);
+      const newOverlay = overlay.where(mask, [...Colors.hexToRgba(color), 150]);
       overlay.dispose();
       return newOverlay;
     });
 
     toDraw.push({
       box: upSampleBox,
-      score: score[0],
-      klass: label[0],
-      label: labels[label[0]],
+      score: score,
+      klass: label,
+      label: labels[label],
+      color: color,
     });
 
     tf.dispose([rowData, protos, upsampleProtos, mask]);
@@ -174,7 +177,7 @@ export const detectFrame = async (source, model, canvasRef, callback = () => {})
   ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height); // clean canvas
   ctx.putImageData(maskImg, 0, 0);
 
-  renderBoxes(canvasRef, toDraw); // render boxes
+  renderBoxes(ctx, toDraw); // render boxes
 
   callback();
 

@@ -1,14 +1,9 @@
 /**
  * Render prediction boxes
- * @param {HTMLCanvasElement} canvasRef canvas tag reference
+ * @param {CanvasRenderingContext2D} ctx context
  * @param {Array} boxesToDraw boxes array to draw
  */
-export const renderBoxes = (canvasRef, boxesToDraw) => {
-  const ctx = canvasRef.getContext("2d");
-  //ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height); // clean canvas
-
-  const colors = new Colors();
-
+export const renderBoxes = (ctx, boxesToDraw) => {
   // font configs
   const font = `${Math.max(
     Math.round(Math.max(ctx.canvas.width, ctx.canvas.height) / 40),
@@ -19,22 +14,17 @@ export const renderBoxes = (canvasRef, boxesToDraw) => {
 
   boxesToDraw.forEach((e) => {
     // filter based on class threshold
-    const color = colors.get(e.klass);
     const score = (e.score * 100).toFixed(1);
 
     let [y1, x1, height, width] = e.box;
 
-    // draw box.
-    ctx.fillStyle = Colors.hexToRgba(color, 0.2);
-    //ctx.fillRect(x1, y1, width, height);
-
     // draw border box.
-    ctx.strokeStyle = color;
+    ctx.strokeStyle = e.color;
     ctx.lineWidth = Math.max(Math.min(ctx.canvas.width, ctx.canvas.height) / 200, 2.5);
     ctx.strokeRect(x1, y1, width, height);
 
     // Draw the label background.
-    ctx.fillStyle = color;
+    ctx.fillStyle = e.color;
     const textWidth = ctx.measureText(e.label + " - " + score + "%").width;
     const textHeight = parseInt(font, 10); // base 10
     const yText = y1 - (textHeight + ctx.lineWidth);
@@ -51,7 +41,7 @@ export const renderBoxes = (canvasRef, boxesToDraw) => {
   });
 };
 
-class Colors {
+export class Colors {
   // ultralytics color palette https://ultralytics.com/
   constructor() {
     this.palette = [
@@ -84,9 +74,7 @@ class Colors {
   static hexToRgba = (hex, alpha) => {
     var result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
     return result
-      ? `rgba(${[parseInt(result[1], 16), parseInt(result[2], 16), parseInt(result[3], 16)].join(
-          ", "
-        )}, ${alpha})`
+      ? [parseInt(result[1], 16), parseInt(result[2], 16), parseInt(result[3], 16)]
       : null;
   };
 }
