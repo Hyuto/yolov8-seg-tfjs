@@ -9,8 +9,15 @@
 
 ---
 
+> :warning: Low performance on doing video processing, need to be improved.
+
 Object Segmentation application right in your browser. Serving YOLOv8-Seg in browser using
 tensorflow.js with `webgl` backend.
+
+### TO DO
+
+1. Readable code
+2. Improve performance
 
 **Setup**
 
