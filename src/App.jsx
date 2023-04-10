@@ -33,7 +33,7 @@ const App = () => {
       ); // load model
 
       // warming up model
-      const dummyInput = tf.ones(yolov8.inputs[0].shape);
+      const dummyInput = tf.randomUniform(yolov8.inputs[0].shape, 0, 1, "float32"); // random input
       const warmupResults = yolov8.execute(dummyInput);
 
       setLoading({ loading: false, progress: 1 });
